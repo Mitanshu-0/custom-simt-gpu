@@ -66,7 +66,8 @@ module decode_unit (
     assign raw_immediate = fetch_instruction[15:0];
     assign sign_extended_immediate_d = {{(`LANE_WIDTH-`IMM_WIDTH){raw_immediate[`IMM_WIDTH-1]}}, raw_immediate};
 
-    always_comb begin
+    always_comb 
+    begin
         reg_write_d = 1'b0;
         mem_read_d = 1'b0;
         mem_write_d = 1'b0;
@@ -82,7 +83,8 @@ module decode_unit (
         source_register_2_d = `REG_ZERO;
 
         case (opcode)
-            `OPCODE_ALU_R: begin
+            `OPCODE_ALU_R: 
+                begin
                 reg_write_d = 1'b1;
                 rs_used_d = 1'b1;
                 rt_used_d = 1'b1;
@@ -90,16 +92,18 @@ module decode_unit (
                 source_register_2_d = rt;
                 destination_register_d = rd;
                 alu_operation_d = fetch_instruction[5:0];
-            end
-            `OPCODE_ALU_I: begin
+                end
+            `OPCODE_ALU_I: 
+                begin
                 reg_write_d = 1'b1;
                 rs_used_d = 1'b1;
                 uses_immediate_d = 1'b1;
                 source_register_1_d = rs;
                 destination_register_d = rt;
                 alu_operation_d = `FUNC_ADD;
-            end
-            `OPCODE_LOAD: begin
+                end
+            `OPCODE_LOAD: 
+                begin
                 reg_write_d = 1'b1;
                 mem_read_d = 1'b1;
                 rs_used_d = 1'b1;
@@ -107,8 +111,9 @@ module decode_unit (
                 source_register_1_d = rs;
                 destination_register_d = rt;
                 alu_operation_d = `FUNC_ADD;
-            end
-            `OPCODE_STORE: begin
+                end
+            `OPCODE_STORE: 
+                begin
                 mem_write_d = 1'b1;
                 rs_used_d = 1'b1;
                 rt_used_d = 1'b1;
@@ -116,30 +121,34 @@ module decode_unit (
                 source_register_1_d = rs;
                 source_register_2_d = rt;
                 alu_operation_d = `FUNC_ADD;
-            end
-            `OPCODE_BEQ: begin
+                end
+            `OPCODE_BEQ: 
+                begin
                 branch_d = 1'b1;
                 rs_used_d = 1'b1;
                 rt_used_d = 1'b1;
                 source_register_1_d = rs;
                 source_register_2_d = rt;
-            end
-            `OPCODE_BNE: begin
+                end
+            `OPCODE_BNE: 
+                begin
                 branch_d = 1'b1;
                 branch_not_equal_d = 1'b1;
                 rs_used_d = 1'b1;
                 rt_used_d = 1'b1;
                 source_register_1_d = rs;
                 source_register_2_d = rt;
-            end
-            `OPCODE_EXIT: begin
+                end
+            `OPCODE_EXIT: 
+                begin
                 exit_d = 1'b1;
-            end
+                end
             default: begin end
         endcase
     end
 
-    always_comb begin
+    always_comb 
+    begin
         scoreboard_check_valid = fetch_instruction_valid;
         scoreboard_check_warp_id = fetch_warp_id;
         scoreboard_check_source_register_1_id = source_register_1_d;
@@ -161,8 +170,10 @@ module decode_unit (
         scoreboard_set_destination_register_id = destination_register_d;
     end
 
-    always_ff @(posedge clk) begin
-        if (rst) begin
+    always_ff @(posedge clk) 
+        begin
+        if (rst) 
+            begin
             execute_instruction_valid <= 1'b0;
             execute_warp_id <= '0;
             execute_program_counter <= '0;
@@ -179,7 +190,9 @@ module decode_unit (
             execute_branch_instruction <= 1'b0;
             execute_branch_not_equal <= 1'b0;
             execute_exit_instruction <= 1'b0;
-        end else begin
+            end 
+        else 
+            begin
             execute_instruction_valid <= fetch_instruction_valid && !register_dependency_hazard_detected;
             execute_warp_id <= fetch_warp_id;
             execute_program_counter <= fetch_program_counter;
@@ -196,6 +209,6 @@ module decode_unit (
             execute_branch_instruction <= fetch_instruction_valid && !register_dependency_hazard_detected && branch_d;
             execute_branch_not_equal <= branch_not_equal_d;
             execute_exit_instruction <= fetch_instruction_valid && !register_dependency_hazard_detected && exit_d;
+            end
         end
-    end
 endmodule

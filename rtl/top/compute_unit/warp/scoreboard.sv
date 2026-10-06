@@ -38,39 +38,38 @@ module scoreboard (
     always_comb begin
         register_dependency_hazard_detected = 1'b0;
 
-        if (check_valid) begin
+        if (check_valid) 
+        begin
 
-            if (check_rs_used && (check_source_register_1_id != `REG_ZERO) &&
-                busy[check_warp_id][check_source_register_1_id])
+            if (check_rs_used && ( check_source_register_1_id != `REG_ZERO) && busy[check_warp_id][check_source_register_1_id] )
                 register_dependency_hazard_detected = 1'b1; // Report RAW hazard
 
-            if (check_rt_used && (check_source_register_2_id != `REG_ZERO) &&
-                busy[check_warp_id][check_source_register_2_id])
+            if (check_rt_used && ( check_source_register_2_id != `REG_ZERO) && busy[check_warp_id][check_source_register_2_id] )
                 register_dependency_hazard_detected = 1'b1; // Report RAW hazard
         end
 
-        for (int warp_index = 0; warp_index < `NUM_WARPS; warp_index++) begin
-            dependency_resolved_for_warp[warp_index] = 1'b0;
-
-            if (blocked_valid[warp_index]) begin
-                dependency_resolved_for_warp[warp_index] = 1'b1;
-
-                if (blocked_rs_used[warp_index] &&
-                    (blocked_source_register_1[warp_index] != `REG_ZERO) &&
-                    busy[warp_index][blocked_source_register_1[warp_index]])
-                    dependency_resolved_for_warp[warp_index] = 1'b0;
-
-                if (blocked_rt_used[warp_index] &&
-                    (blocked_source_register_2[warp_index] != `REG_ZERO) &&
-                    busy[warp_index][blocked_source_register_2[warp_index]])
-                    dependency_resolved_for_warp[warp_index] = 1'b0;
+        for (int warp_index = 0; warp_index < `NUM_WARPS; warp_index++) 
+            begin
+                dependency_resolved_for_warp[warp_index] = 1'b0;
+    
+                if (blocked_valid[warp_index]) 
+                begin
+                    dependency_resolved_for_warp[warp_index] = 1'b1;
+    
+                    if (blocked_rs_used[warp_index] && (blocked_source_register_1[warp_index] != `REG_ZERO) && busy[warp_index][blocked_source_register_1[warp_index]])
+                        dependency_resolved_for_warp[warp_index] = 1'b0;
+    
+                    if (blocked_rt_used[warp_index] && (blocked_source_register_2[warp_index] != `REG_ZERO) && busy[warp_index][blocked_source_register_2[warp_index]])
+                        dependency_resolved_for_warp[warp_index] = 1'b0;
+                end
             end
-        end
     end
 
     always_ff @(posedge clk) begin
-        if (rst) begin
-            for (int warp_index = 0; warp_index < `NUM_WARPS; warp_index++) begin
+        if (rst) 
+        begin
+            for (int warp_index = 0; warp_index < `NUM_WARPS; warp_index++) 
+            begin
                 blocked_valid[warp_index] <= 1'b0;
                 blocked_source_register_1[warp_index] <= `REG_ZERO;
                 blocked_source_register_2[warp_index] <= `REG_ZERO;
@@ -80,9 +79,12 @@ module scoreboard (
                 for (int register_index = 0; register_index < `NUM_VREGS; register_index++)
                     busy[warp_index][register_index] <= 1'b0; // Clear destination busy
             end
-        end else begin
+        end 
+        else 
+        begin
 
-            if (check_valid && register_dependency_hazard_detected) begin
+            if (check_valid && register_dependency_hazard_detected) 
+            begin
                 blocked_valid[check_warp_id] <= 1'b1;
                 blocked_source_register_1[check_warp_id] <= check_source_register_1_id;
                 blocked_source_register_2[check_warp_id] <= check_source_register_2_id;
@@ -90,12 +92,14 @@ module scoreboard (
                 blocked_rt_used[check_warp_id] <= check_rt_used;
             end
 
-            for (int warp_index = 0; warp_index < `NUM_WARPS; warp_index++) begin
+            for (int warp_index = 0; warp_index < `NUM_WARPS; warp_index++) 
+            begin
                 if (blocked_valid[warp_index] && dependency_resolved_for_warp[warp_index])
                     blocked_valid[warp_index] <= 1'b0;
             end
 
-            if (set_valid && (set_destination_register_id != `REG_ZERO)) begin
+            if (set_valid && (set_destination_register_id != `REG_ZERO)) 
+            begin
 
                 if (clear_valid &&
                     (set_warp_id == clear_warp_id) &&
@@ -106,9 +110,8 @@ module scoreboard (
             end
 
             if (clear_valid && (clear_destination_register_id != `REG_ZERO) &&
-                !(set_valid &&
-                  (set_warp_id == clear_warp_id) &&
-                  (set_destination_register_id == clear_destination_register_id))) begin
+                !(set_valid && (set_warp_id == clear_warp_id) && (set_destination_register_id == clear_destination_register_id))) 
+            begin
                 busy[clear_warp_id][clear_destination_register_id] <= 1'b0; // Clear destination busy
             end
         end

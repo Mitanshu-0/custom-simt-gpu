@@ -33,7 +33,8 @@ module writeback_stage (
     output logic [`WARP_ID_WIDTH-1:0] exit_warp_id // EXIT warp ID
 );
 
-    always_comb begin
+    always_comb 
+    begin
         register_file_write_valid = writeback_instruction_valid && writeback_register_write_enable && // Writeback pipeline data
                                     (writeback_destination_register_id != `REG_ZERO); // Writeback pipeline data
         register_file_write_warp_id = writeback_warp_id; // Writeback pipeline data

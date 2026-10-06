@@ -55,29 +55,34 @@ module execute_stage (
 
     genvar address_lane;
     generate
-        for (address_lane = 0; address_lane < `WARP_SIZE; address_lane++) begin : GEN_ADDRESS
+        for (address_lane = 0; address_lane < `WARP_SIZE; address_lane++) 
+            begin : GEN_ADDRESS
             assign address_result[address_lane] =
                 source_register_1_data[address_lane] + execute_immediate_value;
-        end
+            end
     endgenerate
 
-    always_comb begin
+    always_comb 
+    begin
         all_equal = 1'b1;
         all_not_equal = 1'b1;
         saw_active = 1'b0;
-        for (int lane = 0; lane < `WARP_SIZE; lane++) begin
-            if (execute_active_lane_mask[lane]) begin
-                saw_active = 1'b1;
-                if (source_register_1_data[lane] != source_register_2_data[lane])
-                    all_equal = 1'b0;
-                if (source_register_1_data[lane] == source_register_2_data[lane])
-                    all_not_equal = 1'b0;
-            end
+        for (int lane = 0; lane < `WARP_SIZE; lane++) 
+        begin
+            if (execute_active_lane_mask[lane]) 
+                begin
+                    saw_active = 1'b1;
+                    if (source_register_1_data[lane] != source_register_2_data[lane])
+                        all_equal = 1'b0;
+                    if (source_register_1_data[lane] == source_register_2_data[lane])
+                        all_not_equal = 1'b0;
+                end
         end
-        if (!saw_active) begin
+        if (!saw_active) 
+            begin
             all_equal = 1'b0;
             all_not_equal = 1'b0;
-        end
+            end
 
         if (execute_branch_not_equal)
             branch_taken_comb = all_not_equal;
@@ -88,8 +93,10 @@ module execute_stage (
             branch_taken_comb = 1'b0;
     end
 
-    always_ff @(posedge clk) begin
-        if (rst) begin
+    always_ff @(posedge clk) 
+    begin
+        if (rst) 
+        begin
             memory_instruction_valid <= 1'b0;
             memory_warp_id <= '0;
             memory_program_counter <= '0;
@@ -102,12 +109,16 @@ module execute_stage (
             memory_branch_taken <= 1'b0;
             memory_branch_target_program_counter <= '0; // Calculate branch target
             memory_exit_instruction <= 1'b0;
-            for (int lane = 0; lane < `WARP_SIZE; lane++) begin
+            for (int lane = 0; lane < `WARP_SIZE; lane++) 
+            begin
                 memory_alu_result[lane] <= '0;
                 memory_address[lane] <= '0;
                 memory_store_data[lane] <= '0;
             end
-        end else begin
+        end
+        
+        else 
+        begin
             memory_instruction_valid <= execute_instruction_valid;
             memory_warp_id <= execute_warp_id;
             memory_program_counter <= execute_program_counter;
@@ -121,11 +132,12 @@ module execute_stage (
             memory_branch_target_program_counter <= execute_program_counter + execute_immediate_value[`PC_WIDTH-1:0]; // Calculate branch target
             memory_exit_instruction <= execute_exit_instruction;
 
-            for (int lane = 0; lane < `WARP_SIZE; lane++) begin
+            for (int lane = 0; lane < `WARP_SIZE; lane++) 
+                begin
                 memory_alu_result[lane] <= alu_result[lane];
                 memory_address[lane] <= address_result[lane];
                 memory_store_data[lane] <= source_register_2_data[lane];
-            end
+                end
         end
     end
 endmodule

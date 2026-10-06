@@ -24,8 +24,10 @@ module instruction_fetch_unit (
 
     assign instruction_memory_address = selected_warp_program_counter; // Selected PC goes to IMEM
 
-    always_ff @(posedge clk) begin
-        if (rst) begin
+    always_ff @(posedge clk) 
+        begin
+        if (rst) 
+            begin
             request_valid <= 1'b0; // Capture next fetch request
             request_warp_id <= '0;
             request_program_counter <= '0;
@@ -35,7 +37,9 @@ module instruction_fetch_unit (
             fetch_program_counter <= '0;
             fetch_active_lane_mask <= '0;
             fetch_instruction <= '0;
-        end else begin
+            end 
+        else 
+            begin
             fetch_instruction_valid <= request_valid; // Align valid with IMEM response
             fetch_warp_id <= request_warp_id;
             fetch_program_counter <= request_program_counter;
@@ -46,6 +50,6 @@ module instruction_fetch_unit (
             request_warp_id <= selected_warp_id;
             request_program_counter <= selected_warp_program_counter;
             request_active_lane_mask <= selected_warp_active_lane_mask;
-        end
+            end
     end
 endmodule

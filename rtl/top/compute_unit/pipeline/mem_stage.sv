@@ -40,18 +40,22 @@ module mem_stage (
     output logic writeback_exit_instruction // Writeback pipeline data
 );
 
-    always_comb begin
+    always_comb 
+    begin
         data_memory_active_lane_mask = memory_active_lane_mask;
         data_memory_read_enable = memory_instruction_valid && memory_read_enable;
         data_memory_write_enable = memory_instruction_valid && memory_write_enable;
-        for (int lane = 0; lane < `WARP_SIZE; lane++) begin
+        for (int lane = 0; lane < `WARP_SIZE; lane++) 
+        begin
             data_memory_address[lane] = memory_address[lane];
             data_memory_store_data[lane] = memory_store_data[lane];
         end
     end
 
-    always_ff @(posedge clk) begin
-        if (rst) begin
+    always_ff @(posedge clk) 
+    begin
+        if (rst) 
+        begin
             writeback_instruction_valid <= 1'b0; // Writeback pipeline data
             writeback_warp_id <= '0; // Writeback pipeline data
             writeback_active_lane_mask <= '0; // Writeback pipeline data
@@ -63,7 +67,9 @@ module mem_stage (
             writeback_exit_instruction <= 1'b0; // Writeback pipeline data
             for (int lane = 0; lane < `WARP_SIZE; lane++)
                 writeback_result_data[lane] <= '0; // Writeback pipeline data
-        end else begin
+        end 
+        else 
+        begin
             writeback_instruction_valid <= memory_instruction_valid; // Writeback pipeline data
             writeback_warp_id <= memory_warp_id; // Writeback pipeline data
             writeback_active_lane_mask <= memory_active_lane_mask; // Writeback pipeline data
@@ -74,7 +80,8 @@ module mem_stage (
             writeback_branch_target_program_counter <= memory_branch_target_program_counter; // Calculate branch target
             writeback_exit_instruction <= memory_instruction_valid && memory_exit_instruction; // Writeback pipeline data
 
-            for (int lane = 0; lane < `WARP_SIZE; lane++) begin
+            for (int lane = 0; lane < `WARP_SIZE; lane++) 
+            begin
                 if (memory_read_enable)
                     writeback_result_data[lane] <= memory_load_data[lane]; // Writeback pipeline data
                 else

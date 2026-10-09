@@ -15,7 +15,9 @@
 `define WARP_ID_WIDTH 2                     // 2 bits for 4 warps
 `define REG_ID_WIDTH 5                      // 5 bits for 32 registers
 `define WARP_STATE_WIDTH 2                  // 2-bit warp state
-`define PENDING_COUNT_WIDTH 4                // Unused in simple scoreboard
+`define PENDING_COUNT_WIDTH 4                // Scoreboard pending-state width
+`define SIMT_STACK_DEPTH 8                   // Maximum nested divergent control-flow levels per warp
+`define SIMT_STACK_PTR_WIDTH 4               // log2(SIMT_STACK_DEPTH+1) for stack entries 0..8
 
 `define WARP_READY 2'b00                    // Ready
 `define WARP_STALL 2'b01                    // Stalled

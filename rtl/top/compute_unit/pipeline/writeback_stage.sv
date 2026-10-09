@@ -1,60 +1,78 @@
-// Writeback and control feedback
+// Writeback and control feedback.
 
 `include "../../cu_defs.svh"
 
 module writeback_stage (
-    input logic writeback_instruction_valid, // Writeback pipeline data
-    input logic [`WARP_ID_WIDTH-1:0] writeback_warp_id, // Writeback pipeline data
-    input logic [`WARP_SIZE-1:0] writeback_active_lane_mask, // Writeback pipeline data
-    input logic [`LANE_WIDTH-1:0] writeback_result_data [0:`WARP_SIZE-1], // Writeback pipeline data
-    input logic [`REG_ID_WIDTH-1:0] writeback_destination_register_id, // Writeback pipeline data
-    input logic writeback_register_write_enable, // Writeback pipeline data
-    input logic writeback_branch_instruction, // Writeback pipeline data
-    input logic writeback_branch_taken, // Writeback pipeline data
-    input logic [`PC_WIDTH-1:0] writeback_branch_target_program_counter, // Calculate branch target
-    input logic writeback_exit_instruction, // Writeback pipeline data
+    input logic writeback_instruction_valid,
+    input logic [`WARP_ID_WIDTH-1:0] writeback_warp_id,
+    input logic [`PC_WIDTH-1:0] writeback_program_counter,
+    input logic [`WARP_SIZE-1:0] writeback_active_lane_mask,
+    input logic [`LANE_WIDTH-1:0] writeback_result_data [0:`WARP_SIZE-1],
+    input logic [`REG_ID_WIDTH-1:0] writeback_destination_register_id,
+    input logic writeback_register_write_enable,
+    input logic writeback_branch_instruction,
+    input logic [`WARP_SIZE-1:0] writeback_branch_taken_mask,
+    input logic [`WARP_SIZE-1:0] writeback_branch_fallthrough_mask,
+    input logic writeback_branch_divergent,
+    input logic [`PC_WIDTH-1:0] writeback_branch_target_program_counter,
+    input logic [`PC_WIDTH-1:0] writeback_branch_fallthrough_program_counter,
+    input logic [`PC_WIDTH-1:0] writeback_branch_reconvergence_program_counter,
+    input logic writeback_branch_reconvergence_valid,
+    input logic writeback_exit_instruction,
 
-    output logic register_file_write_valid, // register-file write valid
-    output logic [`WARP_ID_WIDTH-1:0] register_file_write_warp_id, // register-file write warp ID
-    output logic [`REG_ID_WIDTH-1:0] register_file_write_destination_register_id, // register-file destination
-    output logic [`LANE_WIDTH-1:0] register_file_write_data [0:`WARP_SIZE-1], // lane write data
-    output logic [`WARP_SIZE-1:0] register_file_write_mask, // lane write mask
+    output logic register_file_write_valid,
+    output logic [`WARP_ID_WIDTH-1:0] register_file_write_warp_id,
+    output logic [`REG_ID_WIDTH-1:0] register_file_write_destination_register_id,
+    output logic [`LANE_WIDTH-1:0] register_file_write_data [0:`WARP_SIZE-1],
+    output logic [`WARP_SIZE-1:0] register_file_write_mask,
 
-    output logic scoreboard_clear_valid, // scoreboard clear valid
-    output logic [`WARP_ID_WIDTH-1:0] scoreboard_clear_warp_id, // scoreboard clear warp ID
-    output logic [`REG_ID_WIDTH-1:0] scoreboard_clear_destination_register_id, // scoreboard clear destination
+    output logic scoreboard_clear_valid,
+    output logic [`WARP_ID_WIDTH-1:0] scoreboard_clear_warp_id,
+    output logic [`REG_ID_WIDTH-1:0] scoreboard_clear_destination_register_id,
 
-    output logic branch_commit, // branch commit
-    output logic [`WARP_ID_WIDTH-1:0] branch_warp_id, // branch warp ID
-    output logic branch_taken, // branch taken
-    output logic [`PC_WIDTH-1:0] branch_target_program_counter, // Calculate branch target
+    output logic branch_commit,
+    output logic [`WARP_ID_WIDTH-1:0] branch_warp_id,
+    output logic [`WARP_SIZE-1:0] branch_taken_mask,
+    output logic [`WARP_SIZE-1:0] branch_fallthrough_mask,
+    output logic branch_divergent,
+    output logic [`PC_WIDTH-1:0] branch_target_program_counter,
+    output logic [`PC_WIDTH-1:0] branch_fallthrough_program_counter,
+    output logic [`PC_WIDTH-1:0] branch_reconvergence_program_counter,
+    output logic branch_reconvergence_valid,
+    output logic [`WARP_SIZE-1:0] branch_active_lane_mask,
 
-    output logic exit_commit, // EXIT commit
-    output logic [`WARP_ID_WIDTH-1:0] exit_warp_id // EXIT warp ID
+    output logic exit_commit,
+    output logic [`WARP_ID_WIDTH-1:0] exit_warp_id
 );
+    always_comb begin
+        register_file_write_valid = writeback_instruction_valid &&
+                                    writeback_register_write_enable &&
+                                    (writeback_destination_register_id != `REG_ZERO);
+        register_file_write_warp_id = writeback_warp_id;
+        register_file_write_destination_register_id = writeback_destination_register_id;
+        register_file_write_mask = writeback_active_lane_mask;
 
-    always_comb 
-    begin
-        register_file_write_valid = writeback_instruction_valid && writeback_register_write_enable && // Writeback pipeline data
-                                    (writeback_destination_register_id != `REG_ZERO); // Writeback pipeline data
-        register_file_write_warp_id = writeback_warp_id; // Writeback pipeline data
-        register_file_write_destination_register_id = writeback_destination_register_id; // Writeback pipeline data
-        register_file_write_mask = writeback_active_lane_mask; // Writeback pipeline data
+        scoreboard_clear_valid = writeback_instruction_valid &&
+                                 writeback_register_write_enable &&
+                                 (writeback_destination_register_id != `REG_ZERO);
+        scoreboard_clear_warp_id = writeback_warp_id;
+        scoreboard_clear_destination_register_id = writeback_destination_register_id;
 
-        scoreboard_clear_valid = writeback_instruction_valid && writeback_register_write_enable && // Writeback pipeline data
-                                 (writeback_destination_register_id != `REG_ZERO); // Writeback pipeline data
-        scoreboard_clear_warp_id = writeback_warp_id; // Writeback pipeline data
-        scoreboard_clear_destination_register_id = writeback_destination_register_id; // Writeback pipeline data
+        branch_commit = writeback_instruction_valid && writeback_branch_instruction;
+        branch_warp_id = writeback_warp_id;
+        branch_taken_mask = writeback_branch_taken_mask;
+        branch_fallthrough_mask = writeback_branch_fallthrough_mask;
+        branch_divergent = writeback_branch_divergent;
+        branch_target_program_counter = writeback_branch_target_program_counter;
+        branch_fallthrough_program_counter = writeback_branch_fallthrough_program_counter;
+        branch_reconvergence_program_counter = writeback_branch_reconvergence_program_counter;
+        branch_reconvergence_valid = writeback_branch_reconvergence_valid;
+        branch_active_lane_mask = writeback_active_lane_mask;
 
-        branch_commit = writeback_instruction_valid && writeback_branch_instruction; // Writeback pipeline data
-        branch_warp_id = writeback_warp_id; // Writeback pipeline data
-        branch_taken = writeback_branch_taken; // Writeback pipeline data
-        branch_target_program_counter = writeback_branch_target_program_counter; // Calculate branch target
-
-        exit_commit = writeback_instruction_valid && writeback_exit_instruction; // Writeback pipeline data
-        exit_warp_id = writeback_warp_id; // Writeback pipeline data
+        exit_commit = writeback_instruction_valid && writeback_exit_instruction;
+        exit_warp_id = writeback_warp_id;
 
         for (int lane = 0; lane < `WARP_SIZE; lane++)
-            register_file_write_data[lane] = writeback_result_data[lane]; // Writeback pipeline data
+            register_file_write_data[lane] = writeback_result_data[lane];
     end
 endmodule

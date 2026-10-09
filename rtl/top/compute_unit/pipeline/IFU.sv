@@ -6,6 +6,8 @@ module instruction_fetch_unit (
     input  logic clk, // clock
     input  logic rst, // reset
     input  logic instruction_issue_valid, // fetch request valid
+    input logic stall_requested, // squash fetch when a warp is being stalled
+    input logic [`WARP_ID_WIDTH-1:0] stall_warp_id, // warp whose fetch must be squashed
     input  logic [`WARP_ID_WIDTH-1:0] selected_warp_id, // selected warp
     input  logic [`PC_WIDTH-1:0] selected_warp_program_counter, // selected PC
     input  logic [`WARP_SIZE-1:0] selected_warp_active_lane_mask, // selected active lanes
@@ -46,7 +48,10 @@ module instruction_fetch_unit (
             fetch_active_lane_mask <= request_active_lane_mask;
             fetch_instruction <= instruction_memory_data;
 
-            request_valid <= instruction_issue_valid; // Capture next fetch request
+            // A decode-time branch/EXIT/dependency stall must cancel the next
+            // request from the same warp; otherwise a stale sequential instruction
+            // can leak into Decode before the control-flow update commits.
+            request_valid <= instruction_issue_valid && !(stall_requested && (stall_warp_id == selected_warp_id));
             request_warp_id <= selected_warp_id;
             request_program_counter <= selected_warp_program_counter;
             request_active_lane_mask <= selected_warp_active_lane_mask;

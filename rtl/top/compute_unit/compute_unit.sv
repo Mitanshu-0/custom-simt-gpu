@@ -1,34 +1,34 @@
-// Main GPU pipeline and control connections
+// Main GPU pipeline and control connections.
 
 `include "../cu_defs.svh"
 
 module compute_unit (
-    input logic clk, // clock
-    input logic rst, // reset
+    input logic clk,
+    input logic rst,
 
-    output logic [`PC_WIDTH-1:0] instruction_memory_address, // instruction address
-    input logic [`INST_WIDTH-1:0] instruction_memory_data, // instruction data
+    output logic [`PC_WIDTH-1:0] instruction_memory_address,
+    input logic [`INST_WIDTH-1:0] instruction_memory_data,
 
-    output logic memory_read_enable, // load enable
-    output logic memory_write_enable, // store enable
-    output logic [`WARP_SIZE-1:0] memory_active_lane_mask, // active lane mask
-    output logic [`LANE_WIDTH-1:0] memory_address [0:`WARP_SIZE-1], // lane addresses
-    output logic [`LANE_WIDTH-1:0] memory_store_data [0:`WARP_SIZE-1], // lane store data
-    input logic [`LANE_WIDTH-1:0] memory_load_data [0:`WARP_SIZE-1] // lane load data
+    output logic memory_read_enable,
+    output logic memory_write_enable,
+    output logic [`WARP_SIZE-1:0] memory_active_lane_mask,
+    output logic [`LANE_WIDTH-1:0] memory_address [0:`WARP_SIZE-1],
+    output logic [`LANE_WIDTH-1:0] memory_store_data [0:`WARP_SIZE-1],
+    input logic [`LANE_WIDTH-1:0] memory_load_data [0:`WARP_SIZE-1]
 );
 
-    logic instruction_issue_valid; // fetch request valid
-    logic [`WARP_ID_WIDTH-1:0] selected_warp_id; // selected warp
-    logic [`PC_WIDTH-1:0] selected_warp_program_counter; // selected PC
-    logic [`WARP_SIZE-1:0] selected_warp_active_lane_mask; // selected active lanes
+    logic instruction_issue_valid;
+    logic [`WARP_ID_WIDTH-1:0] selected_warp_id;
+    logic [`PC_WIDTH-1:0] selected_warp_program_counter;
+    logic [`WARP_SIZE-1:0] selected_warp_active_lane_mask;
 
-    logic fetch_instruction_valid; // fetched instruction valid
-    logic [`WARP_ID_WIDTH-1:0] fetch_warp_id; // fetched warp
-    logic [`PC_WIDTH-1:0] fetch_program_counter; // fetched PC
-    logic [`WARP_SIZE-1:0] fetch_active_lane_mask; // fetched active lanes
-    logic [`INST_WIDTH-1:0] fetch_instruction; // fetched instruction
+    logic fetch_instruction_valid;
+    logic [`WARP_ID_WIDTH-1:0] fetch_warp_id;
+    logic [`PC_WIDTH-1:0] fetch_program_counter;
+    logic [`WARP_SIZE-1:0] fetch_active_lane_mask;
+    logic [`INST_WIDTH-1:0] fetch_instruction;
 
-    logic register_dependency_hazard_detected; // RAW hazard
+    logic register_dependency_hazard_detected;
     logic [`NUM_WARPS-1:0] dependency_resolved_for_warp;
     logic scoreboard_set_valid;
     logic [`WARP_ID_WIDTH-1:0] scoreboard_set_warp_id;
@@ -78,20 +78,31 @@ module compute_unit (
     logic memory_pipeline_read_enable;
     logic memory_pipeline_write_enable;
     logic memory_branch_instruction;
-    logic memory_branch_taken;
-    logic [`PC_WIDTH-1:0] memory_branch_target_program_counter; // Calculate branch target
+    logic [`WARP_SIZE-1:0] memory_branch_taken_mask;
+    logic [`WARP_SIZE-1:0] memory_branch_fallthrough_mask;
+    logic memory_branch_divergent;
+    logic [`PC_WIDTH-1:0] memory_branch_target_program_counter;
+    logic [`PC_WIDTH-1:0] memory_branch_fallthrough_program_counter;
+    logic [`PC_WIDTH-1:0] memory_branch_reconvergence_program_counter;
+    logic memory_branch_reconvergence_valid;
     logic memory_exit_instruction;
 
-    logic writeback_instruction_valid; // Writeback pipeline data
-    logic [`WARP_ID_WIDTH-1:0] writeback_warp_id; // Writeback pipeline data
-    logic [`WARP_SIZE-1:0] writeback_active_lane_mask; // Writeback pipeline data
-    logic [`LANE_WIDTH-1:0] writeback_result_data [0:`WARP_SIZE-1]; // Writeback pipeline data
-    logic [`REG_ID_WIDTH-1:0] writeback_destination_register_id; // Writeback pipeline data
-    logic writeback_register_write_enable; // Writeback pipeline data
-    logic writeback_branch_instruction; // Writeback pipeline data
-    logic writeback_branch_taken; // Writeback pipeline data
-    logic [`PC_WIDTH-1:0] writeback_branch_target_program_counter; // Calculate branch target
-    logic writeback_exit_instruction; // Writeback pipeline data
+    logic writeback_instruction_valid;
+    logic [`WARP_ID_WIDTH-1:0] writeback_warp_id;
+    logic [`PC_WIDTH-1:0] writeback_program_counter;
+    logic [`WARP_SIZE-1:0] writeback_active_lane_mask;
+    logic [`LANE_WIDTH-1:0] writeback_result_data [0:`WARP_SIZE-1];
+    logic [`REG_ID_WIDTH-1:0] writeback_destination_register_id;
+    logic writeback_register_write_enable;
+    logic writeback_branch_instruction;
+    logic [`WARP_SIZE-1:0] writeback_branch_taken_mask;
+    logic [`WARP_SIZE-1:0] writeback_branch_fallthrough_mask;
+    logic writeback_branch_divergent;
+    logic [`PC_WIDTH-1:0] writeback_branch_target_program_counter;
+    logic [`PC_WIDTH-1:0] writeback_branch_fallthrough_program_counter;
+    logic [`PC_WIDTH-1:0] writeback_branch_reconvergence_program_counter;
+    logic writeback_branch_reconvergence_valid;
+    logic writeback_exit_instruction;
 
     logic register_file_write_valid;
     logic [`WARP_ID_WIDTH-1:0] register_file_write_warp_id;
@@ -101,10 +112,17 @@ module compute_unit (
     logic scoreboard_clear_valid;
     logic [`WARP_ID_WIDTH-1:0] scoreboard_clear_warp_id;
     logic [`REG_ID_WIDTH-1:0] scoreboard_clear_destination_register_id;
+
     logic branch_commit;
     logic [`WARP_ID_WIDTH-1:0] branch_warp_id;
-    logic branch_taken;
-    logic [`PC_WIDTH-1:0] branch_target_program_counter; // Calculate branch target
+    logic [`WARP_SIZE-1:0] branch_taken_mask;
+    logic [`WARP_SIZE-1:0] branch_fallthrough_mask;
+    logic branch_divergent;
+    logic [`PC_WIDTH-1:0] branch_target_program_counter;
+    logic [`PC_WIDTH-1:0] branch_fallthrough_program_counter;
+    logic [`PC_WIDTH-1:0] branch_reconvergence_program_counter;
+    logic branch_reconvergence_valid;
+    logic [`WARP_SIZE-1:0] branch_active_lane_mask;
     logic exit_commit;
     logic [`WARP_ID_WIDTH-1:0] exit_warp_id;
 
@@ -114,13 +132,20 @@ module compute_unit (
     logic stall_is_branch;
     logic stall_is_exit;
 
-    assign stall_requested = register_dependency_hazard_detected || branch_stall_requested || exit_stall_requested;
+    assign stall_requested = register_dependency_hazard_detected ||
+                             branch_stall_requested ||
+                             exit_stall_requested;
     assign stall_warp_id = register_dependency_hazard_detected ? fetch_warp_id :
                            branch_stall_requested ? branch_stall_warp_id : exit_stall_warp_id;
     assign stall_program_counter = register_dependency_hazard_detected ? fetch_program_counter :
                                    branch_stall_requested ? branch_stall_program_counter : exit_stall_program_counter;
-    assign stall_is_branch = branch_stall_requested && !register_dependency_hazard_detected && !exit_stall_requested;
-    assign stall_is_exit = exit_stall_requested && !register_dependency_hazard_detected && !branch_stall_requested;
+    assign stall_is_branch = branch_stall_requested &&
+                             !register_dependency_hazard_detected &&
+                             !exit_stall_requested;
+    assign stall_is_exit = exit_stall_requested &&
+                           !register_dependency_hazard_detected &&
+                           !branch_stall_requested;
+
     warp_manager u_warp_manager (
         .clk(clk),
         .rst(rst),
@@ -132,8 +157,14 @@ module compute_unit (
         .dependency_resolved_for_warp(dependency_resolved_for_warp),
         .branch_commit(branch_commit),
         .branch_warp_id(branch_warp_id),
-        .branch_taken(branch_taken),
-        .branch_target_program_counter(branch_target_program_counter), // Calculate branch target
+        .branch_taken_mask(branch_taken_mask),
+        .branch_fallthrough_mask(branch_fallthrough_mask),
+        .branch_divergent(branch_divergent),
+        .branch_target_program_counter(branch_target_program_counter),
+        .branch_fallthrough_program_counter(branch_fallthrough_program_counter),
+        .branch_reconvergence_program_counter(branch_reconvergence_program_counter),
+        .branch_reconvergence_valid(branch_reconvergence_valid),
+        .branch_active_lane_mask(branch_active_lane_mask),
         .exit_commit(exit_commit),
         .exit_warp_id(exit_warp_id),
         .instruction_issue_valid(instruction_issue_valid),
@@ -141,13 +172,16 @@ module compute_unit (
         .selected_warp_program_counter(selected_warp_program_counter),
         .selected_warp_active_lane_mask(selected_warp_active_lane_mask),
         .warp_state(),
-        .warp_program_counter()
+        .warp_program_counter(),
+        .warp_active_lane_mask()
     );
 
     instruction_fetch_unit u_ifu (
         .clk(clk),
         .rst(rst),
         .instruction_issue_valid(instruction_issue_valid),
+        .stall_requested(stall_requested),
+        .stall_warp_id(stall_warp_id),
         .selected_warp_id(selected_warp_id),
         .selected_warp_program_counter(selected_warp_program_counter),
         .selected_warp_active_lane_mask(selected_warp_active_lane_mask),
@@ -180,8 +214,7 @@ module compute_unit (
     );
 
     decode_unit u_decode (
-        .clk(clk),
-        .rst(rst),
+        .clk(clk), .rst(rst),
         .fetch_instruction(fetch_instruction),
         .fetch_instruction_valid(fetch_instruction_valid),
         .fetch_warp_id(fetch_warp_id),
@@ -222,8 +255,7 @@ module compute_unit (
     );
 
     vector_register_file u_register_file (
-        .clk(clk),
-        .rst(rst),
+        .clk(clk), .rst(rst),
         .read_warp_id(execute_warp_id),
         .source_register_1_id(execute_source_register_1_id),
         .source_register_2_id(execute_source_register_2_id),
@@ -237,8 +269,7 @@ module compute_unit (
     );
 
     execute_stage u_execute (
-        .clk(clk),
-        .rst(rst),
+        .clk(clk), .rst(rst),
         .execute_instruction_valid(execute_instruction_valid),
         .execute_warp_id(execute_warp_id),
         .execute_program_counter(execute_program_counter),
@@ -267,14 +298,18 @@ module compute_unit (
         .memory_read_enable(memory_pipeline_read_enable),
         .memory_write_enable(memory_pipeline_write_enable),
         .memory_branch_instruction(memory_branch_instruction),
-        .memory_branch_taken(memory_branch_taken),
-        .memory_branch_target_program_counter(memory_branch_target_program_counter), // Calculate branch target
+        .memory_branch_taken_mask(memory_branch_taken_mask),
+        .memory_branch_fallthrough_mask(memory_branch_fallthrough_mask),
+        .memory_branch_divergent(memory_branch_divergent),
+        .memory_branch_target_program_counter(memory_branch_target_program_counter),
+        .memory_branch_fallthrough_program_counter(memory_branch_fallthrough_program_counter),
+        .memory_branch_reconvergence_program_counter(memory_branch_reconvergence_program_counter),
+        .memory_branch_reconvergence_valid(memory_branch_reconvergence_valid),
         .memory_exit_instruction(memory_exit_instruction)
     );
 
     mem_stage u_memory_stage (
-        .clk(clk),
-        .rst(rst),
+        .clk(clk), .rst(rst),
         .memory_instruction_valid(memory_instruction_valid),
         .memory_warp_id(memory_warp_id),
         .memory_program_counter(memory_program_counter),
@@ -287,8 +322,13 @@ module compute_unit (
         .memory_read_enable(memory_pipeline_read_enable),
         .memory_write_enable(memory_pipeline_write_enable),
         .memory_branch_instruction(memory_branch_instruction),
-        .memory_branch_taken(memory_branch_taken),
-        .memory_branch_target_program_counter(memory_branch_target_program_counter), // Calculate branch target
+        .memory_branch_taken_mask(memory_branch_taken_mask),
+        .memory_branch_fallthrough_mask(memory_branch_fallthrough_mask),
+        .memory_branch_divergent(memory_branch_divergent),
+        .memory_branch_target_program_counter(memory_branch_target_program_counter),
+        .memory_branch_fallthrough_program_counter(memory_branch_fallthrough_program_counter),
+        .memory_branch_reconvergence_program_counter(memory_branch_reconvergence_program_counter),
+        .memory_branch_reconvergence_valid(memory_branch_reconvergence_valid),
         .memory_exit_instruction(memory_exit_instruction),
         .memory_load_data(memory_load_data),
         .data_memory_address(memory_address),
@@ -296,29 +336,41 @@ module compute_unit (
         .data_memory_active_lane_mask(memory_active_lane_mask),
         .data_memory_read_enable(memory_read_enable),
         .data_memory_write_enable(memory_write_enable),
-        .writeback_instruction_valid(writeback_instruction_valid), // Writeback pipeline data
-        .writeback_warp_id(writeback_warp_id), // Writeback pipeline data
-        .writeback_active_lane_mask(writeback_active_lane_mask), // Writeback pipeline data
-        .writeback_result_data(writeback_result_data), // Writeback pipeline data
-        .writeback_destination_register_id(writeback_destination_register_id), // Writeback pipeline data
-        .writeback_register_write_enable(writeback_register_write_enable), // Writeback pipeline data
-        .writeback_branch_instruction(writeback_branch_instruction), // Writeback pipeline data
-        .writeback_branch_taken(writeback_branch_taken), // Writeback pipeline data
-        .writeback_branch_target_program_counter(writeback_branch_target_program_counter), // Calculate branch target
-        .writeback_exit_instruction(writeback_exit_instruction) // Writeback pipeline data
+        .writeback_instruction_valid(writeback_instruction_valid),
+        .writeback_warp_id(writeback_warp_id),
+        .writeback_program_counter(writeback_program_counter),
+        .writeback_active_lane_mask(writeback_active_lane_mask),
+        .writeback_result_data(writeback_result_data),
+        .writeback_destination_register_id(writeback_destination_register_id),
+        .writeback_register_write_enable(writeback_register_write_enable),
+        .writeback_branch_instruction(writeback_branch_instruction),
+        .writeback_branch_taken_mask(writeback_branch_taken_mask),
+        .writeback_branch_fallthrough_mask(writeback_branch_fallthrough_mask),
+        .writeback_branch_divergent(writeback_branch_divergent),
+        .writeback_branch_target_program_counter(writeback_branch_target_program_counter),
+        .writeback_branch_fallthrough_program_counter(writeback_branch_fallthrough_program_counter),
+        .writeback_branch_reconvergence_program_counter(writeback_branch_reconvergence_program_counter),
+        .writeback_branch_reconvergence_valid(writeback_branch_reconvergence_valid),
+        .writeback_exit_instruction(writeback_exit_instruction)
     );
 
-    writeback_stage u_writeback ( // Writeback pipeline data
-        .writeback_instruction_valid(writeback_instruction_valid), // Writeback pipeline data
-        .writeback_warp_id(writeback_warp_id), // Writeback pipeline data
-        .writeback_active_lane_mask(writeback_active_lane_mask), // Writeback pipeline data
-        .writeback_result_data(writeback_result_data), // Writeback pipeline data
-        .writeback_destination_register_id(writeback_destination_register_id), // Writeback pipeline data
-        .writeback_register_write_enable(writeback_register_write_enable), // Writeback pipeline data
-        .writeback_branch_instruction(writeback_branch_instruction), // Writeback pipeline data
-        .writeback_branch_taken(writeback_branch_taken), // Writeback pipeline data
-        .writeback_branch_target_program_counter(writeback_branch_target_program_counter), // Calculate branch target
-        .writeback_exit_instruction(writeback_exit_instruction), // Writeback pipeline data
+    writeback_stage u_writeback (
+        .writeback_instruction_valid(writeback_instruction_valid),
+        .writeback_warp_id(writeback_warp_id),
+        .writeback_program_counter(writeback_program_counter),
+        .writeback_active_lane_mask(writeback_active_lane_mask),
+        .writeback_result_data(writeback_result_data),
+        .writeback_destination_register_id(writeback_destination_register_id),
+        .writeback_register_write_enable(writeback_register_write_enable),
+        .writeback_branch_instruction(writeback_branch_instruction),
+        .writeback_branch_taken_mask(writeback_branch_taken_mask),
+        .writeback_branch_fallthrough_mask(writeback_branch_fallthrough_mask),
+        .writeback_branch_divergent(writeback_branch_divergent),
+        .writeback_branch_target_program_counter(writeback_branch_target_program_counter),
+        .writeback_branch_fallthrough_program_counter(writeback_branch_fallthrough_program_counter),
+        .writeback_branch_reconvergence_program_counter(writeback_branch_reconvergence_program_counter),
+        .writeback_branch_reconvergence_valid(writeback_branch_reconvergence_valid),
+        .writeback_exit_instruction(writeback_exit_instruction),
         .register_file_write_valid(register_file_write_valid),
         .register_file_write_warp_id(register_file_write_warp_id),
         .register_file_write_destination_register_id(register_file_write_destination_register_id),
@@ -329,8 +381,14 @@ module compute_unit (
         .scoreboard_clear_destination_register_id(scoreboard_clear_destination_register_id),
         .branch_commit(branch_commit),
         .branch_warp_id(branch_warp_id),
-        .branch_taken(branch_taken),
-        .branch_target_program_counter(branch_target_program_counter), // Calculate branch target
+        .branch_taken_mask(branch_taken_mask),
+        .branch_fallthrough_mask(branch_fallthrough_mask),
+        .branch_divergent(branch_divergent),
+        .branch_target_program_counter(branch_target_program_counter),
+        .branch_fallthrough_program_counter(branch_fallthrough_program_counter),
+        .branch_reconvergence_program_counter(branch_reconvergence_program_counter),
+        .branch_reconvergence_valid(branch_reconvergence_valid),
+        .branch_active_lane_mask(branch_active_lane_mask),
         .exit_commit(exit_commit),
         .exit_warp_id(exit_warp_id)
     );
